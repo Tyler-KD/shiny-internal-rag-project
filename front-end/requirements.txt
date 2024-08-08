@@ -1,3 +1,22 @@
 shiny
 pandas
 requests
+langchain
+openai
+python-dotenv
+
+# # for .pdf files
+# pypdf2
+# # for .doc files
+# docx
+# # for .xlsx files
+# openpyxl
+# # requirement for running openpyxl
+# pillow
+# python-docx 
+# openpyxl 
+# google-auth 
+# google-auth-oauthlib 
+# google-auth-httplib2 
+# google-api-python-client 
+# requests
