@@ -1,7 +1,0 @@
-fastapi
-uvicorn
-sqlalchemy
-pgvector
-sentence-transformers
-python-multipart
-psycopg2-binary
