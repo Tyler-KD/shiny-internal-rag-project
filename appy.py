@@ -1,7 +1,3 @@
-# # TODO: Make the user input their own API key
-# # TODO: change it so that the app connects with a different python file that gives a response to the user
-# # TODO: test what files do and don't work for summarization 
-
 from shiny import App, render, ui, reactive
 import os
 import shutil
@@ -45,37 +41,23 @@ app_ui = ui.page_fluid(
             }
         """)
     ),
-    ui.page_sidebar(
-        ui.sidebar(
-            ui.accordion(
-                ui.accordion_panel("Uploaded files",
-                    ui.output_ui("uploaded_files_list"),
-                    ui.input_action_button("delete_button", "Delete Selected Files"),
-                    ui.input_action_button("process_button", "Process Selected Files"),
-                ),
-            ),
-            ui.accordion(
-                ui.accordion_panel("Selected files",
-                    ui.output_ui("checked_boxes_list"),
-                ),
-            ),
-        ),
-        ui.h1("File Upload and Local Storage"),
-        ui.input_file("file_upload", "Upload a file", multiple=True),
-        ui.output_text_verbatim("file_info"), # fix this so that the files uploaded go straight to the list of "uploaded files"
-        ui.input_text("user_question", "Ask a question about the document(s):"),
-        ui.input_action_button("submit_question", "Submit Question"),
-        ui.output_text_verbatim("process_output")
-    )
+    ui.h1("File Upload and Local Storage"),
+    ui.input_file("file_upload", "Upload a file", multiple=True),
+    # ui.output_text_verbatim("file_info"), 
+    ui.markdown("Uploaded files"),
+    ui.output_ui("uploaded_files_list"),
+    ui.input_action_button("delete_button", "Delete Selected Files"),
+    ui.input_action_button("process_button", "Process Selected Files"),
+    ui.input_text("user_question", "Ask a question about the document(s):"),
+    ui.input_action_button("submit_question", "Submit Question"),
+    ui.output_text_verbatim("process_output")
 )
 
 # parent server
 def server(input, output, session):
-    # defined so that no errors occur
     delete_trigger = reactive.Value(0)
     process_output_value = reactive.Value("")
     conversation_history = reactive.Value([])
-    
     
     @output
     @render.text
@@ -86,21 +68,25 @@ def server(input, output, session):
         files = input.file_upload()
         file_details = []
         
-        # a for loop that moves the files to the uploaded_files directory - could be used to move file_info from where its currently displayed in the ui.
         for file in files:
             filename = file["name"]
             file_path = file["datapath"]
             save_path = os.path.join("uploaded_files", filename)
-            shutil.move(file_path, save_path)
-            file_details.append(f"File uploaded: {filename}")
+            try:
+                shutil.copy2(file_path, save_path)
+                file_details.append(f"File uploaded: {filename}")
+            except FileNotFoundError:
+                file_details.append(f"Error uploading {filename}: File not found")
+            except Exception as e:
+                file_details.append(f"Error uploading {filename}: {str(e)}")
         
+        delete_trigger.set(delete_trigger() + 1)
         return "\n".join(file_details)
     
     @output
     @render.ui
     def uploaded_files_list():
         delete_trigger()
-        # checks if there are any files in the directory
         file_list = os.listdir('uploaded_files')
         if not file_list:
             return ui.p("No files available.")
@@ -108,25 +94,7 @@ def server(input, output, session):
         checkboxes = [ui.tags.li(
             ui.input_checkbox(f"select_{sanitize_filename(file)}", file, value=False),
         ) for file in file_list]
-        #  makes an unordered list of the files
         return ui.tags.ul(*checkboxes)
-    
-    @output
-    @render.ui
-    def checked_boxes_list():
-        delete_trigger()  # To make the UI reactive to deletions
-        file_list = os.listdir('uploaded_files')
-        checked_files = []
-        
-        for file in file_list:
-            checkbox_id = f"select_{sanitize_filename(file)}"
-            if input[checkbox_id]():
-                checked_files.append(file)
-        
-        if not checked_files:
-            return ui.p("No files selected.")
-        
-        return ui.tags.ul(*[ui.tags.li(file) for file in checked_files])
 
     @reactive.Effect
     @reactive.event(input.delete_button)
@@ -170,7 +138,6 @@ def server(input, output, session):
                     content = f.read()
             
             document = Document(page_content=content)
-            # Process the document using LangChain and OpenAI API
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
@@ -211,7 +178,7 @@ def server(input, output, session):
                 with open(file_path, 'r') as f:
                     content = f.read()
             document_contents.append(f"File: {os.path.basename(file_path)}\nContent: {content}")
-            
+
         combined_content = "\n\n".join(document_contents)
 
         history = conversation_history.get()
@@ -244,103 +211,3 @@ app = App(app_ui, server)
 
 if __name__ == "__main__":
     app.run()
-
-
-# from shiny import App, render, ui, reactive
-# import os
-# import shutil
-
-# def sanitize_filename(filename):
-#     return "".join(c if c.isalnum() else "_" for c in filename)
-
-# app_ui = ui.page_fluid(
-#     ui.h1("File Upload and Local Storage"),
-#     ui.input_file("file_upload", "Upload a file", multiple=True),
-#     ui.output_text_verbatim("file_info"),
-#     ui.markdown("Uploaded files"),
-#     ui.output_ui("uploaded_files_list"),
-#     ui.markdown("Checked boxes"),
-#     ui.output_ui("checked_boxes_list"),
-#     ui.input_action_button("delete_button", "Delete Selected Files")
-# )
-
-# # Server logic
-# def server(input, output, session):
-#     delete_trigger = reactive.Value(0)
-
-#     @output
-#     @render.text
-#     def file_info():
-#         if input.file_upload() is None:
-#             return "No file uploaded yet."
-        
-#         files = input.file_upload()
-#         file_details = []
-        
-#         for file in files:
-#             filename = file["name"]
-#             file_path = file["datapath"]
-            
-#             # Move the uploaded file to the destination directory
-#             save_path = os.path.join("uploaded_files", filename)
-#             shutil.move(file_path, save_path)
-            
-#             file_details.append(f"File uploaded: {filename}")
-        
-#         return "\n".join(file_details)
-    
-#     @output
-#     @render.ui
-#     def uploaded_files_list():
-#         delete_trigger()  # To make the UI reactive to deletions
-#         file_list = os.listdir('uploaded_files')
-#         if not file_list:
-#             return ui.p("No files uploaded yet.")
-        
-#         checkboxes = [ui.tags.li(
-#             ui.input_checkbox(f"select_{sanitize_filename(file)}", file, value=False),
-#         ) for file in file_list]
-        
-#         return ui.tags.ul(*checkboxes)
-
-#     @output
-#     @render.ui
-#     def checked_boxes_list():
-#         delete_trigger()  # To make the UI reactive to deletions
-#         file_list = os.listdir('uploaded_files')
-#         checked_files = []
-        
-#         for file in file_list:
-#             checkbox_id = f"select_{sanitize_filename(file)}"
-#             if input[checkbox_id]():
-#                 checked_files.append(file)
-        
-#         if not checked_files:
-#             return ui.p("No files selected.")
-        
-#         return ui.tags.ul(*[ui.tags.li(file) for file in checked_files])
-
-#     @reactive.Effect
-#     @reactive.event(input.delete_button)
-#     def delete_selected_files():
-#         file_list = os.listdir('uploaded_files')
-#         for file in file_list:
-#             checkbox_id = f"select_{sanitize_filename(file)}"
-#             if input[checkbox_id]():
-#                 try:
-#                     os.remove(os.path.join('uploaded_files', file))
-#                 except Exception as e:
-#                     print(f"Error deleting {file}: {e}")
-        
-#         # Trigger reactivity to update the file list
-#         delete_trigger.set(delete_trigger() + 1)
-
-# # Create the app
-# app = App(app_ui, server)
-
-# # Ensure the uploaded_files directory exists
-# if not os.path.exists('uploaded_files'):
-#     os.makedirs('uploaded_files')
-
-# if __name__ == "__main__":
-#     app.run()
