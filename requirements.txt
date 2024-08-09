@@ -4,6 +4,7 @@ requests
 langchain
 openai
 python-dotenv
+PyMuPDF
 
 # # for .pdf files
 # pypdf2
