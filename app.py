@@ -31,16 +31,28 @@ def sanitize_filename(filename):
 def get_time_for_location(timezone):
     return datetime.now(pytz.timezone(timezone)).strftime("%H:%M")
 
-def extract_text_from_pdf(pdf_path):
-    text = ""
-    with fitz.open(pdf_path) as doc:
-        for page in doc:
-            text += page.get_text()
-    return text
+def read_file_content(file_path):
+    _, file_extension = os.path.splitext(file_path)
+    file_extension = file_extension.lower()
+
+    try:
+        if file_extension in ['.txt', '.csv', '.py', '.json']:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        elif file_extension == '.pdf':
+            with open(file_path, 'rb') as f:
+                pdf_reader = PyPDF2.PdfReader(f)
+                return "\n".join(page.extract_text() for page in pdf_reader.pages)
+        elif file_extension == '.docx':
+            doc = DocxDocument(file_path)
+            return "\n".join(paragraph.text for paragraph in doc.paragraphs)
+        else:
+            return f"File type {file_extension} is not supported for content viewing."
+    except Exception as e:
+        return f"Error reading file: {str(e)}"
 
 app_ui = ui.page_fluid(
-    ui.page_auto(
-        ui.tags.style("""
+    ui.tags.style("""
         body {
             font-family: Arial, sans-serif;
             background-color: #E0E0E0;
@@ -156,37 +168,57 @@ app_ui = ui.page_fluid(
             cursor: pointer;
         }
     """),
-    ),
-    ui.page_sidebar(
-        ui.sidebar(
-            ui.accordion(
-                ui.accordion_panel("Uploaded files",
-                    ui.output_ui("uploaded_files_list"),
-                    ui.input_action_button("delete_button", "Delete Selected Files"),
-                    ui.input_action_button("process_button", "Process Selected Files"),
+
+    ui.row(
+        ui.column(4,
+            ui.div({"class": "sidebar"},
+                ui.output_ui("logo_output"),
+                ui.h2("File Upload", style="color: #0E4878;"),
+                ui.input_file("file_upload", "Upload a file by clicking Browse below", multiple=True),
+                ui.output_text_verbatim("file_info"),
+                ui.markdown("### Uploaded files:"),
+                ui.output_ui("uploaded_files_list"),
+                ui.input_action_button("process_button", "Process Selected Files", class_="btn-primary mt-2"),
+                ui.input_action_button("delete_button", "Delete Selected Files", class_="btn-danger mt-2"),
+                ui.div(
+                    ui.input_text_area("user_question", "Ask a question about the file(s):"),
+                    class_="mt-3"
                 ),
-            ),
-            ui.accordion(
-                ui.accordion_panel("Selected files",
-                    ui.output_ui("checked_boxes_list"),
-                ),
-            ),
+                ui.input_action_button("submit_question", "Submit Question", class_="btn-primary mt-2"),
+            )
         ),
-        ui.h1("File Upload and Local Storage"),
-        ui.input_file("file_upload", "Upload a file", multiple=True),
-        ui.output_text_verbatim("file_info"), # fix this so that the files uploaded go straight to the list of "uploaded files"
-        ui.input_text("user_question", "Ask a question about the document(s):"),
-        ui.input_action_button("submit_question", "Submit Question"),
-        ui.output_text_verbatim("process_output")
+        ui.column(8,
+            ui.div({"class": "main-content"},
+                ui.tags.img(src="whitelogo.jpg", class_="logo"),
+                ui.div({"class": "time-display"},
+                    ui.output_text("time_display"),
+                ),
+                ui.h1({"class": "greeting"}, "Welcome!  Bienvenue!  !أهلا وسهلا"),
+                ui.h3("Conversation", class_="section-header"),
+                ui.output_text_verbatim("process_output"),
+            )
+        )
     )
 )
-
 # parent server
 def server(input, output, session):
     # defined so that no errors occur
     delete_trigger = reactive.Value(0)
     process_output_value = reactive.Value("")
     conversation_history = reactive.Value([])
+    
+    @output
+    @render.ui
+    def logo_output():
+        logo_path = "www/whitelogo.jpg"  # Adjust this path if necessary
+        if os.path.exists(logo_path):
+            return ui.tags.img(src="whitelogo.jpg", class_="logo")
+        else:
+            return ui.tags.div(
+                ui.tags.p(f"Logo file not found at: {logo_path}", class_="logo-error"),
+                ui.tags.p(f"Current working directory: {os.getcwd()}", class_="logo-error"),
+                ui.tags.p(f"Files in www folder: {os.listdir('www')}", class_="logo-error")
+            )
     
     @output
     @render.text
@@ -223,29 +255,12 @@ def server(input, output, session):
         if not file_list:
             return ui.p("No files available.")
         
-        checkboxes = [ui.tags.li(
+        checkboxes = [ui.div(
             ui.input_checkbox(f"select_{sanitize_filename(file)}", file, value=False),
+            class_="mb-2"
         ) for file in file_list]
-        #  makes an unordered list of the files
-        return ui.tags.ul(*checkboxes)
+        return ui.div(*checkboxes)
     
-    @output
-    @render.ui
-    def checked_boxes_list():
-        delete_trigger()  # To make the UI reactive to deletions
-        file_list = os.listdir('uploaded_files')
-        checked_files = []
-        
-        for file in file_list:
-            checkbox_id = f"select_{sanitize_filename(file)}"
-            if input[checkbox_id]():
-                checked_files.append(file)
-        
-        if not checked_files:
-            return ui.p("No files selected.")
-        
-        return ui.tags.ul(*[ui.tags.li(file) for file in checked_files])
-
     @reactive.Effect
     @reactive.event(input.delete_button)
     def delete_selected_files():
@@ -281,12 +296,8 @@ def server(input, output, session):
         
         output_list = []
         for file_path in selected_files:
-            if file_path.endswith('.pdf'):
-                content = extract_text_from_pdf(file_path)
-            else:
-                with open(file_path, 'r') as f:
-                    content = f.read()
-            
+            content = read_file_content(file_path)
+           
             document = Document(page_content=content)
             # Process the document using LangChain and OpenAI API
             response = client.chat.completions.create(
@@ -323,11 +334,7 @@ def server(input, output, session):
 
         document_contents = []
         for file_path in selected_files:
-            if file_path.endswith('.pdf'):
-                content = extract_text_from_pdf(file_path)
-            else:
-                with open(file_path, 'r') as f:
-                    content = f.read()
+            content = read_file_content(file_path)
             document_contents.append(f"File: {os.path.basename(file_path)}\nContent: {content}")
             
         combined_content = "\n\n".join(document_contents)
