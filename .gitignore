@@ -85,6 +85,9 @@ web_modules/
 # Uploaded_files
 .uploaded_files
 
+# www folder
+# www
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
