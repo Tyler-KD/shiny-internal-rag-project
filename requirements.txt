@@ -5,6 +5,8 @@ langchain
 openai
 python-dotenv
 PyMuPDF
+pytz
+datetime
 
 # # for .pdf files
 # pypdf2
