@@ -85,6 +85,9 @@ web_modules/
 # Uploaded_files
 .uploaded_files
 
+#processed_files.json
+processed_files.json
+
 # www folder
 # www
 
