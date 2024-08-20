@@ -85,7 +85,10 @@ web_modules/
 # Uploaded_files
 .uploaded_files
 
-#processed_files.json
+#faiss files
+chunk_mapping.pkl
+faiss_index.pkl
+faiss_indices.pkl
 processed_files.json
 
 # www folder

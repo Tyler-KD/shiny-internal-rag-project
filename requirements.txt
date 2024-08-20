@@ -10,3 +10,8 @@ sentence-transformers
 faiss-cpu
 numpy
 pickle-mixin
+pandas
+openpyxl
+chardet
+aiohttp
+tqdm
