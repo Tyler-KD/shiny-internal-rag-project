@@ -118,5 +118,9 @@ styles_app = ui.page_fluid(
             border-radius: 3px;
             cursor: pointer;
         }
+        .sensitive-file {
+            color: red;
+            font-weight: bold;
+        }
     """)
 )
