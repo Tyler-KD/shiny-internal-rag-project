@@ -20,6 +20,7 @@ import random
 import asyncio
 from tqdm import tqdm
 import aiohttp
+from pathlib import Path
 
 
 # Import functions from utils.py
@@ -39,6 +40,9 @@ logging.getLogger('openai').setLevel(logging.WARNING)
 
 # Load environment variables
 load_dotenv()
+
+# Used to path for images
+here = Path(__file__).parent
 
 # Ensure the 'uploaded_files' directory exists
 if not os.path.exists('uploaded_files'):
@@ -188,37 +192,41 @@ async def summarize_chunk(session, summary_chain, chunk):
 
 # Define the UI for the Shiny app
 app_ui = ui.page_fluid(
-    ui.tags.style(styles_app),
-    ui.row(
-        ui.column(4,
-            ui.div({"class": "sidebar"},
-                ui.h2("File Upload", style="color: #0E4878;"),
-                ui.input_file("file_upload", "Upload a file by clicking Browse below", multiple=True),
-                ui.output_text_verbatim("file_info"),
-                ui.markdown("### Uploaded files:"),
-                ui.output_ui("uploaded_files_list"),
-                ui.input_action_button("process_button", "Process Selected Files", class_="btn-primary mt-2"),
-                ui.input_action_button("summarize_button", "Summarize Selected Files", class_="btn-primary mt-2"),
-                ui.input_action_button("delete_button", "Delete Selected Files", class_="btn-danger mt-2"),
-                ui.div(
-                    ui.input_text_area("user_question", "Ask a question about the file(s):"),
-                    class_="mt-3"
-                ),
-                ui.input_action_button("submit_question", "Submit Question", class_="btn-primary mt-2"),
-            )
+    ui.tags.style(styles_app),  # Apply custom styles
+    ui.output_image("blueGlobeBG"),  # Display background image
+    ui.page_sidebar(
+        ui.sidebar(
+            ui.h2("File Upload", style="color: #0E4878;"),  # Sidebar header with custom color
+            ui.input_file("file_upload", "Upload a file by clicking Browse below", multiple=True),  # File upload input
+            ui.output_text_verbatim("file_info"),  # Display uploaded file info
+            ui.accordion(
+                ui.accordion_panel(
+                    ui.markdown("### Uploaded files:"),  # Display markdown text
+                    ui.output_ui("uploaded_files_list"),  # Display list of uploaded files
+                )
+            ),
+            ui.input_action_button("process_button", "Process Selected Files", class_="btn-primary mt-2 PSDbtn"),  # Button to process files
+            ui.input_action_button("summarize_button", "Summarize Selected Files", class_="btn-primary mt-2 PSDbtn"),  # Button to summarize files
+            ui.input_action_button("delete_button", "Delete Selected Files", class_="btn-danger mt-2 PSDbtn"),  # Button to delete files
+            ui.div(
+                ui.input_text_area("user_question", "Ask a question about the file(s):"),  # Text area to ask questions
+                class_="mt-3"
+            ),
+            ui.input_action_button("submit_question", "Submit Question", class_="btn-primary mt-2"),  # Button to submit questions
+        open="open"),
+        ui.div ({"class": "logoWelcome"}, 
+            ui.output_image("logo_transparent", inline=True),
+            ui.div({"class": "time-display-column"},
+                ui.output_text("time_display"),  # Display time for different locations
+                ui.h1({"class": "greeting"}, "Welcome!  Bienvenue!  !أهلا وسهلا"),  # Display multilingual greeting
+            ),
+        ),  # Display version
+        ui.div (
+            ui.h3("Conversation", class_="section-header"),  # Section header
+            ui.output_text_verbatim("process_output"),  # Display processing output
         ),
-        ui.column(8,
-            ui.div({"class": "main-content"},
-                ui.div({"class": "time-display"},
-                    ui.output_text("time_display"),
-                ),
-                ui.h1({"class": "greeting"}, "Welcome!  Bienvenue!  !أهلا وسهلا"),
-                ui.h3("Conversation", class_="section-header"),
-                ui.output_text_verbatim("process_output"),
-                ui.output_text_verbatim("api_key_info"),
-                ui.output_text_verbatim("progress_output"),
-            )
-        )
+        ui.output_text_verbatim("api_key_info"),  # Display API key info
+        ui.output_text_verbatim("progress_output"),  # Display progress output
     )
 )
 
@@ -230,6 +238,16 @@ def server(input, output, session):
     process_output_value = reactive.Value("")
     progress_output_value = reactive.Value("")
     conversation_history = reactive.Value([])
+
+    @render.image  
+    def logo_transparent():
+        img = {"src": here / "www/logo-transparent.png", "width": "300px"}  
+        return img
+    
+    @render.image  
+    def blueGlobeBG():
+        img = {"src": here / "www/blueGlobeBG.png"}  
+        return img
 
     @reactive.Effect
     def _():
@@ -249,16 +267,42 @@ def server(input, output, session):
         current_files = file_list()
         current_processed = processed_files_reactive()
         current_sensitive = sensitive_files.get()
+
         if not current_files:
             return ui.p("No files available.")
         
+        master_checkbox = ui.div(
+            ui.input_checkbox("select_all_files", "Select All", value=False),
+            class_="mb-3"
+        )
+        
         checkboxes = [ui.div(
             ui.input_checkbox(f"select_{sanitize_filename(file)}", file, value=True),
-            ui.span(" (Processed)" if file in current_processed else " (Not processed)", style="font-size: 0.8em;"),
+            ui.span(" (Processed)" if file in current_processed else " (Not processed)", style="font-size: 0.8em; margin-left: 28px"),
             ui.span(" [SENSITIVE]" if file in current_sensitive else "", style="color: red; font-weight: bold; font-size: 0.8em;"),
             class_="mb-2"
         ) for file in current_files]
-        return ui.div(*checkboxes)
+        
+        return ui.div(master_checkbox, *checkboxes)
+
+
+    @reactive.Effect
+    @reactive.event(input.select_all_files)
+    def toggle_all_checkboxes():
+        current_files = file_list()  # Retrieve the current list of files
+        select_all = input.select_all_files()
+
+        for file in current_files:
+            checkbox_id = f"select_{sanitize_filename(file)}"
+            ui.update_checkbox(checkbox_id, value=select_all)
+
+
+    @reactive.Effect
+    def update_select_all():
+        current_files = file_list()  # Retrieve the current list of files
+        all_checked = all([input[f"select_{sanitize_filename(file)}"] for file in current_files])
+
+        ui.update_checkbox("select_all_files", value=all_checked)
 
     @output
     @render.text
