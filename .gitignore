@@ -90,6 +90,7 @@ chunk_mapping.pkl
 faiss_index.pkl
 faiss_indices.pkl
 processed_files.json
+sensitive_files.json
 
 # www folder
 # www
