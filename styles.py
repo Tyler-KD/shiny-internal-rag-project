@@ -103,7 +103,7 @@ styles_app = ui.page_fluid(
             border-radius: 7px;
             white-space: pre-wrap;
         }
-        h1, h2, h3 {
+        h1, h2, h3, h4, h5, li {
             color: #0E4878;
         }
         .mt-2 {
@@ -123,7 +123,7 @@ styles_app = ui.page_fluid(
             text-align: right;
         }
         .time-display-column {
-            font-size: 0.9em;
+            font-size: 1.1em;
             display: flex;
             flex-direction: column;
             jusify-content: space-between;
