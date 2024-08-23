@@ -498,7 +498,7 @@ def server(input, output, session):
 
             conversation_history.set(conversation_history.get() + [(question, answer)])
 
-            output = f"Question: {question}\n\nAnswer: {answer}"
+            output = f"Question: {question}\n\nAnswer: {answer}\nRelevant files: {set(relevant_files)}"
             process_output_value.set(output)
         except Exception as e:
             logging.error(f"Error in handle_question: {str(e)}")
