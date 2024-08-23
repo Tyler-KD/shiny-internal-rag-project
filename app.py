@@ -62,6 +62,13 @@ indices, chunk_mapping = load_indices_and_mappings()
 # Initialize processed files
 processed_files = load_processed_files()
 
+# Initialize ChatOpenAI with GPT-3.5-Turbo
+chat = ChatOpenAI(
+    model_name="gpt-3.5-turbo",
+    temperature=0,
+    max_tokens=300
+)
+
 # Process a file: extract content, chunk it, and add embeddings to FAISS index
 def process_file(file_name) -> Tuple[str, bool]:
     global indices, chunk_mapping
@@ -221,8 +228,15 @@ app_ui = ui.page_fluid(
                 ui.h1({"class": "greeting"}, "Welcome!  Bienvenue!  !أهلا وسهلا"),  # Display multilingual greeting
             ),
         ),  # Display version
-        ui.div (
-            ui.h3("Conversation", class_="section-header"),  # Section header
+        ui.div (            
+            ui.h3("Instructions:"),
+                ui.tags.ul(
+                ui.tags.li("In the sidebar to the left, click 'Browse' to select your files."),
+                ui.tags.li("Click 'Process Selected Files' to initiate processing."),
+                ui.tags.li("Select files and click 'Summarize Selected Files' or 'Submit Question.'"),
+                ui.tags.li("Output will be displayed below.")
+                ),
+            ui.h3("Output:", class_="section-header"),  # Section header
             ui.output_text_verbatim("process_output"),  # Display processing output
         ),
         ui.output_text_verbatim("api_key_info"),  # Display API key info
@@ -304,14 +318,14 @@ def server(input, output, session):
 
         ui.update_checkbox("select_all_files", value=all_checked)
 
-    @output
-    @render.text
-    def api_key_info():
-        if UNSTRUCTURED_API_KEY:
-            masked_key = UNSTRUCTURED_API_KEY[:4] + '*' * (len(UNSTRUCTURED_API_KEY) - 8) + UNSTRUCTURED_API_KEY[-4:]
-            return f"Unstructured API Key: {masked_key}"
-        else:
-            return "Unstructured API Key is not set in the .env file"
+    # @output
+    # @render.text
+    # def api_key_info():
+    #     if UNSTRUCTURED_API_KEY:
+    #         masked_key = UNSTRUCTURED_API_KEY[:4] + '*' * (len(UNSTRUCTURED_API_KEY) - 8) + UNSTRUCTURED_API_KEY[-4:]
+    #         return f"Unstructured API Key: {masked_key}"
+    #     else:
+    #         return "Unstructured API Key is not set in the .env file"
 
     @output
     @render.text
@@ -484,7 +498,7 @@ def server(input, output, session):
 
             conversation_history.set(conversation_history.get() + [(question, answer)])
 
-            output = f"Question: {question}\n\nAnswer: {answer}\n\nDebug Info:\nRelevant files: {set(relevant_files)}\nRetrieved Chunks: {relevant_chunks}\n\nContext Used: {context}"
+            output = f"Question: {question}\n\nAnswer: {answer}"
             process_output_value.set(output)
         except Exception as e:
             logging.error(f"Error in handle_question: {str(e)}")
