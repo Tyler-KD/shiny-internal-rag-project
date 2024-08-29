@@ -7,7 +7,6 @@ from datetime import datetime
 import pytz
 from styles import styles_app
 from langchain_openai import ChatOpenAI
-from langchain_community.llms import Ollama
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 import logging
@@ -17,10 +16,8 @@ import pickle
 from typing import Tuple, List, Set
 import json
 import gc
-import random
 import asyncio
 from tqdm import tqdm
-import aiohttp
 from pathlib import Path
 
 # Import functions from utils.py
@@ -61,9 +58,6 @@ indices, chunk_mapping = load_indices_and_mappings()
 
 # Initialize processed files
 processed_files = load_processed_files()
-
-# Initialize the Ollama client with Llama 3 model
-ollama_llama = Ollama(model="llama3")  # Make sure this matches the name of your Llama 3 model in Ollama
 
 # Process a file: extract content, chunk it, and add embeddings to FAISS index
 def process_file(file_name) -> Tuple[str, bool]:
@@ -146,21 +140,16 @@ def retrieve_relevant_chunks(question, selected_files, top_k=5, max_context_leng
         return [], []
 
 # Modify the summarize_document function
-async def summarize_document(content: str, openai_api_key: str = None, max_tokens: int = 4000) -> Tuple[str, str]:
+async def summarize_document(content: str, openai_api_key: str, max_tokens: int = 4000) -> Tuple[str, str]:
     chunks = chunk_document(content, max_tokens)
     summaries = []
 
-    if openai_api_key and openai_api_key.startswith("sk-"):
-        try:
-            chat = ChatOpenAI(api_key=openai_api_key, model_name="gpt-3.5-turbo", temperature=0, max_tokens=500)
-            current_model = "gpt-3.5-turbo"
-        except Exception as e:
-            logging.error(f"Error with OpenAI API key: {str(e)}. Falling back to Llama 3 via Ollama.")
-            chat = ollama_llama
-            current_model = "llama3-ollama"
-    else:
-        chat = ollama_llama
-        current_model = "llama3-ollama"
+    try:
+        chat = ChatOpenAI(api_key=openai_api_key, model_name="gpt-3.5-turbo", temperature=0, max_tokens=500)
+        current_model = "gpt-3.5-turbo"
+    except Exception as e:
+        logging.error(f"Error with OpenAI API key: {str(e)}.")
+        return f"Error with OpenAI API key: {str(e)}", "Error"
 
     summary_prompt = PromptTemplate(
         input_variables=["content"],
@@ -207,7 +196,7 @@ app_ui = ui.page_fluid(
                 ui.input_text_area("user_question", "Ask a question about the file(s):"),
                 class_="mt-3"
             ),
-            ui.input_text("openai_api_key", "Enter OpenAI API Key (optional):", placeholder="sk-..."),
+            ui.input_text("openai_api_key", "Enter OpenAI API Key:", placeholder="sk-..."),
             ui.input_action_button("submit_question", "Submit Question", class_="btn-primary mt-2"),
         open="open"),
         ui.div({"class": "logoWelcome"}, 
@@ -221,10 +210,10 @@ app_ui = ui.page_fluid(
             ui.h3("Instructions:"),
                 ui.tags.ul(
                 ui.tags.li("In the sidebar to the left, click 'Browse' to select your files."),
-                ui.tags.li("Click 'Process Selected Files' to initiate processing."),
+                ui.tags.li("Click 'Process Selected Files' to initiate processing."), 
+                ui.tags.li("Enter your OpenAI API key to use GPT-3.5-Turbo for summarization and answering questions."),
                 ui.tags.li("Select files and click 'Summarize Selected Files' or 'Submit Question.'"),
                 ui.tags.li("Output will be displayed below."),
-                ui.tags.li("(Optional) Enter an OpenAI API key to use GPT-3.5-Turbo instead of Llama 3.")
                 ),
             ui.h3("Output:", class_="section-header"),
             ui.output_text_verbatim("process_output"),
@@ -242,7 +231,7 @@ def server(input, output, session):
     process_output_value = reactive.Value("")
     progress_output_value = reactive.Value("")
     conversation_history = reactive.Value([])
-    current_model = reactive.Value("llama3-ollama")
+    current_model = reactive.Value("gpt-3.5-turbo")
 
     @render.image  
     def logo_transparent():
@@ -417,7 +406,7 @@ def server(input, output, session):
         try:
             process_output_value.set("Summarizing files... Please wait.")
             summaries = []
-            openai_api_key = input.openai_api_key()
+            openai_api_key = input.openai_api_key() or os.getenv("OPENAI_API_KEY")
             for file in tqdm(selected_files, desc="Summarizing files"):
                 if file not in processed_files_reactive():
                     summaries.append(f"Cannot summarize {file}: File not processed yet.")
@@ -467,19 +456,10 @@ def server(input, output, session):
             context = "\n\n".join(relevant_chunks)
             logging.info(f"Context being used: {context}")
             
-            openai_api_key = input.openai_api_key()
+            openai_api_key = input.openai_api_key() or os.getenv("OPENAI_API_KEY")
             
-            if openai_api_key and openai_api_key.startswith("sk-"):
-                try:
-                    chat = ChatOpenAI(api_key=openai_api_key, model_name="gpt-3.5-turbo", temperature=0, max_tokens=300)
-                    current_model.set("gpt-3.5-turbo")
-                except Exception as e:
-                    process_output_value.set(f"Error with OpenAI API key: {str(e)}. Falling back to Llama 3 via Ollama.")
-                    chat = ollama_llama
-                    current_model.set("llama3-ollama")
-            else:
-                chat = ollama_llama
-                current_model.set("llama3-ollama")
+            chat = ChatOpenAI(api_key=openai_api_key, model_name="gpt-3.5-turbo", temperature=0, max_tokens=300)
+            current_model.set("gpt-3.5-turbo")
             
             prompt = PromptTemplate(
                 input_variables=["context", "question"],
