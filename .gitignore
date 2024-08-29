@@ -91,6 +91,7 @@ faiss_index.pkl
 faiss_indices.pkl
 processed_files.json
 sensitive_files.json
+rsconnect-python
 
 # www folder
 # www
