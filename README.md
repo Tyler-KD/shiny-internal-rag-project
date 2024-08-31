@@ -49,10 +49,7 @@ For usage instructions with the deployed application using Shiny, follow the pre
 
 Attached is a demo of the app in use, featuring functionality of "Summarize Selected Files", "Submit Question", and "Delete Files" buttons with corresponding output displayed in the "Output" text area:
 
-<video width="600" controls>
-  <source src="www/RAG%20Demo.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+[Demo](https://drive.google.com/file/d/1sDZRD6lRGl12DdQxakLJdLplt-T9JYVs/view?usp=sharing)
 
 ## Deployed Site
 
