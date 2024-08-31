@@ -49,7 +49,7 @@ For usage instructions with the deployed application using Shiny, follow the pre
 
 Attached is a demo of the app in use, featuring functionality of "Summarize Selected Files", "Submit Question", and "Delete Files" buttons with corresponding output displayed in the "Output" text area:
 
-[Demo](https://glitterpilebucket.s3.us-east-2.amazonaws.com/RAG+Demo.mp4)
+[Demo](https://drive.google.com/file/d/1sDZRD6lRGl12DdQxakLJdLplt-T9JYVs/view?usp=sharing)
 
 ## Deployed Site
 
